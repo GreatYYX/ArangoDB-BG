@@ -121,6 +121,54 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
     }
 
     @Override
+    public int CreateFriendship(int friendid1, int friendid2) {
+        return acceptFriend(friendid1, friendid2);
+    }
+
+    @Override
+    public int acceptFriend(int inviterID, int inviteeID) {
+
+        try {
+            String strInviterID = Integer.toString(inviterID);
+            String strInviteeID = Integer.toString(inviteeID);
+            BaseDocument docObjUpdate = null;
+            ArrayList<Integer> pendFriends = null;
+            ArrayList<Integer> confFriends = null;
+
+            // remove invitor id from invitees pending list
+            DocumentEntity<BaseDocument> docInvitee = arango.getDocument("users", strInviteeID, BaseDocument.class);
+            docObjUpdate = docInvitee.getEntity();
+            pendFriends = (ArrayList<Integer>)docObjUpdate.getAttribute("PendFriends");
+            if (pendFriends.contains(inviterID)) {
+                pendFriends.remove(inviterID);
+                docObjUpdate.updateAttribute("PendFriends", pendFriends);
+                arango.updateDocument(docInvitee.getDocumentHandle(), docObjUpdate);
+            }
+
+            // add invitor id to invitees confirmed list
+            docObjUpdate = docInvitee.getEntity();
+            confFriends = (ArrayList<Integer>)docObjUpdate.getAttribute("ConfFriends");
+            confFriends.add(inviterID);
+            docObjUpdate.updateAttribute("ConfFriends", confFriends);
+            arango.updateDocument(docInvitee.getDocumentHandle(), docObjUpdate);
+
+            // add invitee id to inviter confirmed list
+            DocumentEntity<BaseDocument> docInviter = arango.getDocument("users", strInviterID, BaseDocument.class);
+            docObjUpdate = docInviter.getEntity();
+            confFriends = (ArrayList<Integer>)docObjUpdate.getAttribute("ConfFriends");
+            confFriends.add(inviteeID);
+            docObjUpdate.updateAttribute("ConfFriends", confFriends);
+            arango.updateDocument(docInviter.getDocumentHandle(), docObjUpdate);
+
+        } catch (Exception e) {
+            System.out.println(e.toString());
+            return -1;
+        }
+
+        return 0;
+    }
+
+    @Override
     public int viewProfile(int requesterID, int profileOwnerID, HashMap<String, ByteIterator> result, boolean insertImage, boolean testMode) {
         return 0;
     }
@@ -132,11 +180,6 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
 
     @Override
     public int viewFriendReq(int profileOwnerID, Vector<HashMap<String, ByteIterator>> results, boolean insertImage, boolean testMode) {
-        return 0;
-    }
-
-    @Override
-    public int acceptFriend(int inviterID, int inviteeID) {
         return 0;
     }
 
@@ -183,11 +226,6 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
     @Override
     public HashMap<String, String> getInitialStats() {
         return null;
-    }
-
-    @Override
-    public int CreateFriendship(int friendid1, int friendid2) {
-        return 0;
     }
 
     @Override
