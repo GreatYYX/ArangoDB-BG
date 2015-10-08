@@ -15,4 +15,4 @@ Create schema:
 
 Load data:
 
-`onetime -load -db arangoDB.ArangoDbClient -P <HOME>/BG/workloads/populateDB -p arangodb.url=127.0.0.1:8529 -p arangodb.database=bgtest`
+`onetime -load -db arangoDB.ArangoDbClient -P <HOME>/BG/workloads/populateDB -p arangodb.url=127.0.0.1:8529 -p arangodb.database=bgtest -p threadcount=5`
