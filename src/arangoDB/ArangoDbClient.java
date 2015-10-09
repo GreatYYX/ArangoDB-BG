@@ -255,7 +255,6 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
     public HashMap<String, String> getInitialStats() {
 
         HashMap<String, String> stats = new HashMap<String, String>();
-        CollectionEntity collection = null;
         String query = null;
         DocumentCursor<BaseDocument> docCursor = null;
         BaseDocument docObj = null;
@@ -281,7 +280,7 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             }
 
             // average friends per user & average pending friend per user
-            query = "FOR u IN users FILTER u._key==\"1\" RETURN u";
+            query = "FOR u IN users FILTER u._key==\"" + userOffset + "\" RETURN u";
             docCursor = arango.executeDocumentQuery(
                     query, null, arango.getDefaultAqlQueryOptions(), BaseDocument.class);
             resList = docCursor.asList();
@@ -304,8 +303,76 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             e.printStackTrace();
         }
 
-
         return stats;
+    }
+
+    @Override
+    public int rejectFriend(int inviterID, int inviteeID) {
+
+        if(inviterID < 0 || inviteeID < 0)
+            return -1;
+
+        try {
+            String strInviteeID = Integer.toString(inviteeID);
+            BaseDocument docObjUpdate = null;
+            ArrayList<Integer> pendFriends = null;
+
+            //remove from pending of invitee
+            DocumentEntity<BaseDocument> docInvitee = arango.getDocument("users", strInviteeID, BaseDocument.class);
+            docObjUpdate = docInvitee.getEntity();
+            pendFriends = (ArrayList<Integer>)docObjUpdate.getAttribute("PendFriends");
+            if (pendFriends.contains(inviteeID)) {
+                pendFriends.remove(inviterID);
+            }
+            docObjUpdate.updateAttribute("PendFriends", pendFriends);
+            arango.updateDocument(docInvitee.getDocumentHandle(), docObjUpdate);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return -1;
+        }
+
+        return 0;
+    }
+
+    @Override
+    public int thawFriendship(int friendid1, int friendid2) {
+
+        if(friendid1 < 0 || friendid2 < 0)
+            return -1;
+
+        try {
+            String strId1 = Integer.toString(friendid1);
+            String strId2 = Integer.toString(friendid2);
+            BaseDocument docObjUpdate = null;
+            ArrayList<Integer> confFriends = null;
+
+            // delete friend2 from user1
+            DocumentEntity<BaseDocument> docUser1 = arango.getDocument("users", strId1, BaseDocument.class);
+            docObjUpdate = docUser1.getEntity();
+            confFriends = (ArrayList<Integer>)docObjUpdate.getAttribute("ConfFriends");
+            if (confFriends.contains(friendid1)) {
+                confFriends.remove(friendid1);
+            }
+            docObjUpdate.updateAttribute("ConfFriends", confFriends);
+            arango.updateDocument(docUser1.getDocumentHandle(), docObjUpdate);
+
+
+            // delete friend1 from user2
+            DocumentEntity<BaseDocument> docUser2 = arango.getDocument("users", strId2, BaseDocument.class);
+            docObjUpdate = docUser2.getEntity();
+            confFriends = (ArrayList<Integer>)docObjUpdate.getAttribute("ConfFriends");
+            if (confFriends.contains(friendid2)) {
+                confFriends.remove(friendid2);
+            }
+            docObjUpdate.updateAttribute("ConfFriends", confFriends);
+            arango.updateDocument(docUser2.getDocumentHandle(), docObjUpdate);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return -1;
+        }
+
+        return 0;
     }
 
     @Override
@@ -320,11 +387,6 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
 
     @Override
     public int viewFriendReq(int profileOwnerID, Vector<HashMap<String, ByteIterator>> results, boolean insertImage, boolean testMode) {
-        return 0;
-    }
-
-    @Override
-    public int rejectFriend(int inviterID, int inviteeID) {
         return 0;
     }
 
@@ -350,11 +412,6 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
 
     @Override
     public int delCommentOnResource(int resourceCreatorID, int resourceID, int manipulationID) {
-        return 0;
-    }
-
-    @Override
-    public int thawFriendship(int friendid1, int friendid2) {
         return 0;
     }
 
