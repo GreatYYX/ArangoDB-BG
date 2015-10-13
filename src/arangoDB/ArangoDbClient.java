@@ -20,10 +20,14 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class ArangoDbClient extends DB implements ArangoDbClientConstants {
 
+    public static final int SUCCESS = 0;
+    public static final int ERROR = -1;
+
     private static ArangoDriver arango;
     private static ArangoConfigure arangoCfg;
     private static Properties props;
     private String database;
+    private String storeRoot;
     private static AtomicInteger NumThreads = null;
     private static Semaphore crtcl = new Semaphore(1, true);
 
@@ -83,6 +87,8 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
         } finally {
             crtcl.release();
         }
+
+        storeRoot = props.getProperty(ARANGODB_FS_PATH);
 
         return true;
     }
@@ -165,22 +171,22 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
 
                 // image
                 if(insertImage) {
-                    String storeRoot = props.getProperty(ARANGODB_FS_PATH);
 
                     try {
-
+                        // profile
                         byte[] profileImage = ((ObjectByteIterator)values.get("pic")).toArray();
                         ArangoDbFsStore fs = new ArangoDbFsStore(storeRoot, ARANGODB_FS_IMAGE_FOLDER);
-                        fs.createFile(entityPK, profileImage);
+                        fs.writeFile(entityPK, profileImage);
                         docObj.addAttribute("imageid", intEntityPK);
 
+                        // thumbnail
                         byte[] thumbImage = ((ObjectByteIterator)values.get("tpic")).toArray();
                         ArangoDbFsStore fsThumb = new ArangoDbFsStore(storeRoot, ARANGODB_FS_THUMB_FOLDER);
-                        fsThumb.createFile(entityPK, thumbImage);
+                        fsThumb.writeFile(entityPK, thumbImage);
                         docObj.addAttribute("thumbid", intEntityPK);
                     } catch (IOException e) {
                         System.out.println(e.toString());
-                        return -1;
+                        return ERROR;
                     }
                 }
             }
@@ -196,10 +202,10 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
 
         } catch (Exception e) {
             System.out.println(e.toString());
-            return -1;
+            return ERROR;
         }
 
-        return 0;
+        return SUCCESS;
     }
 
     @Override
@@ -211,7 +217,7 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
     public int acceptFriend(int inviterID, int inviteeID) {
 
         if(inviterID < 0 || inviteeID < 0)
-            return -1;
+            return ERROR;
 
         try {
             String strInviterID = Integer.toString(inviterID);
@@ -247,17 +253,17 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
 
         } catch (Exception e) {
             System.out.println(e.toString());
-            return -1;
+            return ERROR;
         }
 
-        return 0;
+        return SUCCESS;
     }
 
     @Override
     public int inviteFriend(int inviterID, int inviteeID) {
 
         if(inviterID < 0 || inviteeID < 0)
-            return -1;
+            return ERROR;
 
         try {
             String strInviteeID = Integer.toString(inviteeID);
@@ -274,9 +280,9 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
 
         } catch (Exception e) {
             System.out.println(e.toString());
-            return -1;
+            return ERROR;
         }
-        return 0;
+        return SUCCESS;
     }
 
     @Override
@@ -338,7 +344,7 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
     public int rejectFriend(int inviterID, int inviteeID) {
 
         if(inviterID < 0 || inviteeID < 0)
-            return -1;
+            return ERROR;
 
         try {
             String strInviteeID = Integer.toString(inviteeID);
@@ -356,17 +362,17 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             arango.updateDocument(docInvitee.getDocumentHandle(), docObjUpdate);
         } catch (Exception e) {
             e.printStackTrace();
-            return -1;
+            return ERROR;
         }
 
-        return 0;
+        return SUCCESS;
     }
 
     @Override
     public int thawFriendship(int friendid1, int friendid2) {
 
         if(friendid1 < 0 || friendid2 < 0)
-            return -1;
+            return ERROR;
 
         try {
             String strId1 = Integer.toString(friendid1);
@@ -384,7 +390,6 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             docObjUpdate.updateAttribute("ConfFriends", confFriends);
             arango.updateDocument(docUser1.getDocumentHandle(), docObjUpdate);
 
-
             // delete friend1 from user2
             DocumentEntity<BaseDocument> docUser2 = arango.getDocument("users", strId2, BaseDocument.class);
             docObjUpdate = docUser2.getEntity();
@@ -397,14 +402,17 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
 
         } catch (Exception e) {
             e.printStackTrace();
-            return -1;
+            return ERROR;
         }
 
-        return 0;
+        return SUCCESS;
     }
 
     @Override
     public int viewProfile(int requesterID, int profileOwnerID, HashMap<String, ByteIterator> result, boolean insertImage, boolean testMode) {
+
+        if (requesterID < 0 || profileOwnerID < 0)
+            return ERROR;
 
         String query;
         DocumentCursor docCursor;
@@ -429,6 +437,20 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
                 result.put("pendingcount", new ObjectByteIterator(Integer.toString(pendCount).getBytes()));
             }
 
+            // read profile details:
+            int uid = new Double((Double)docObj.getAttribute("uid")).intValue();
+            result.put("uid",       new ObjectByteIterator(Integer.toString(uid).getBytes()));
+            result.put("username",  new ObjectByteIterator(((String)docObj.getAttribute("username")).getBytes()));
+            result.put("fname",     new ObjectByteIterator(((String)docObj.getAttribute("fname")).getBytes()));
+            result.put("lname",     new ObjectByteIterator(((String)docObj.getAttribute("lname")).getBytes()));
+            result.put("gender",    new ObjectByteIterator(((String)docObj.getAttribute("gender")).getBytes()));
+            result.put("dob",       new ObjectByteIterator(((String)docObj.getAttribute("dob")).getBytes()));
+            result.put("jdate",     new ObjectByteIterator(((String)docObj.getAttribute("jdate")).getBytes()));
+            result.put("ldate",     new ObjectByteIterator(((String)docObj.getAttribute("ldate")).getBytes()));
+            result.put("address",   new ObjectByteIterator(((String)docObj.getAttribute("address")).getBytes()));
+            result.put("email",     new ObjectByteIterator(((String)docObj.getAttribute("email")).getBytes()));
+            result.put("tel",       new ObjectByteIterator(((String)docObj.getAttribute("tel")).getBytes()));
+
             // count of resources
             query = "FOR r IN resources FILTER r.walluserid==\"" + strProfileOwnerID + "\" RETURN r";
             docCursor = arango.executeDocumentQuery(
@@ -437,58 +459,71 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             result.put("resourcecount", new ObjectByteIterator(Integer.toString(resCount).getBytes()));
 
             // handle images
-
+            if(insertImage){
+                ArangoDbFsStore fs = new ArangoDbFsStore(storeRoot, ARANGODB_FS_IMAGE_FOLDER);
+                byte[] profileImage = fs.readFile(strProfileOwnerID);
+                if (testMode) {
+                    // dump to file
+//                    try {
+//                        FileOutputStream fos = new FileOutputStream(strProfileOwnerID + "-proimage.bmp");
+//                        fos.write(profileImage);
+//                        fos.close();
+//                    } catch (Exception ex) {
+//                    }
+                }
+                result.put("pic", new ObjectByteIterator(profileImage));
+            }
 
         } catch (Exception e) {
             e.printStackTrace();
-            return -1;
+            return ERROR;
         }
 
-        return 0;
+        return SUCCESS;
     }
 
     @Override
     public int listFriends(int requesterID, int profileOwnerID, Set<String> fields, Vector<HashMap<String, ByteIterator>> result, boolean insertImage, boolean testMode) {
-        return 0;
+        return SUCCESS;
     }
 
     @Override
     public int viewFriendReq(int profileOwnerID, Vector<HashMap<String, ByteIterator>> results, boolean insertImage, boolean testMode) {
-        return 0;
+        return SUCCESS;
     }
 
     @Override
     public int viewTopKResources(int requesterID, int profileOwnerID, int k, Vector<HashMap<String, ByteIterator>> result) {
-        return 0;
+        return SUCCESS;
     }
 
     @Override
     public int getCreatedResources(int creatorID, Vector<HashMap<String, ByteIterator>> result) {
-        return 0;
+        return SUCCESS;
     }
 
     @Override
     public int viewCommentOnResource(int requesterID, int profileOwnerID, int resourceID, Vector<HashMap<String, ByteIterator>> result) {
-        return 0;
+        return SUCCESS;
     }
 
     @Override
     public int postCommentOnResource(int commentCreatorID, int resourceCreatorID, int resourceID, HashMap<String, ByteIterator> values) {
-        return 0;
+        return SUCCESS;
     }
 
     @Override
     public int delCommentOnResource(int resourceCreatorID, int resourceID, int manipulationID) {
-        return 0;
+        return SUCCESS;
     }
 
     @Override
     public int queryPendingFriendshipIds(int memberID, Vector<Integer> pendingIds) {
-        return 0;
+        return SUCCESS;
     }
 
     @Override
     public int queryConfirmedFriendshipIds(int memberID, Vector<Integer> confirmedIds) {
-        return 0;
+        return SUCCESS;
     }
 }
