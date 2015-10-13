@@ -1,16 +1,16 @@
 package arangoDB;
 
-import com.arangodb.*;
-import com.arangodb.entity.IndexType;
 import edu.usc.bg.base.ByteIterator;
 import edu.usc.bg.base.DB;
 import edu.usc.bg.base.DBException;
+import edu.usc.bg.base.ObjectByteIterator;
 
+import com.arangodb.*;
 import com.arangodb.entity.BaseDocument;
 import com.arangodb.entity.CollectionEntity;
 import com.arangodb.entity.DocumentEntity;
-import com.arangodb.util.MapBuilder;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ArangoDbClient extends DB implements ArangoDbClientConstants {
 
     private static ArangoDriver arango;
+    private static ArangoConfigure arangoCfg;
     private static Properties props;
     private String database;
     private static AtomicInteger NumThreads = null;
@@ -68,12 +69,12 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
                 NumThreads.set(0);
 
                 // db configuration
-                ArangoConfigure configure = new ArangoConfigure();
-                configure.setArangoHost(new ArangoHost(host, port));
-                configure.init();
+                arangoCfg = new ArangoConfigure();
+                arangoCfg.setArangoHost(new ArangoHost(host, port));
+                arangoCfg.init();
 
                 // connect db
-                arango = new ArangoDriver(configure, database);
+                arango = new ArangoDriver(arangoCfg, database);
             }
             incrementNumThreads();
         } catch(Exception e) {
@@ -89,21 +90,23 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
     @Override
     public void createSchema(Properties props) {
 
-        // delete exists
         try {
-            arango.deleteCollection("users");
-            arango.deleteCollection("resources");
-//            arango.deleteCollection("manipulation");
-        } catch (Exception e) {
-            // ignore exceptions
-        }
+            // delete existent collections
+            try {
+                arango.deleteCollection("users");
+            } catch (Exception e) {}
+            try {
+                arango.deleteCollection("resources");
+            } catch (Exception e) {}
 
-        // create collections
-        try {
-            CollectionEntity collection;
-            collection = arango.createCollection("users");
-            collection = arango.createCollection("resources");
-//            arango.createCollection("manipulation");
+            // create collections
+            arango.createCollection("users");
+            arango.createCollection("resources");
+
+            // initialize filesystem
+            new ArangoDbFsStore(props.getProperty(ARANGODB_FS_PATH), ARANGODB_FS_IMAGE_FOLDER).initFolder();
+            new ArangoDbFsStore(props.getProperty(ARANGODB_FS_PATH), ARANGODB_FS_THUMB_FOLDER).initFolder();
+
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -119,7 +122,7 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             }
             decrementNumThreads();
 
-            // add instance to vector of connections
+            // close instance to vector of connections
             if (NumThreads.get() > 0) {
                 crtcl.release();
                 return;
@@ -130,6 +133,7 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
+                arangoCfg.shutdown();
                 if(arango != null) arango = null;
                 crtcl.release();
             }
@@ -143,7 +147,10 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             CollectionEntity collection = arango.getCollection(entitySet);
 
             BaseDocument docObj = new BaseDocument();
-            docObj.setDocumentKey(entityPK);
+            docObj.setDocumentKey(entityPK); // create _key
+            int intEntityPK = Integer.parseInt(entityPK); // _key in integer
+
+            // add attributes
             for (String k: values.keySet()) {
                 if(!(k.toString().equalsIgnoreCase("pic") || k.toString().equalsIgnoreCase("tpic"))) {
                     docObj.addAttribute(k, values.get(k).toString());
@@ -152,14 +159,35 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
 
             // add specific attributes for collection "users"
             if (entitySet.equalsIgnoreCase("users")) {
-                docObj.addAttribute("uid", Integer.parseInt(entityPK));
+                docObj.addAttribute("uid", intEntityPK);
                 docObj.addAttribute("ConfFriends", new ArrayList<Integer>());
                 docObj.addAttribute("PendFriends", new ArrayList<Integer>());
+
+                // image
+                if(insertImage) {
+                    String storeRoot = props.getProperty(ARANGODB_FS_PATH);
+
+                    try {
+
+                        byte[] profileImage = ((ObjectByteIterator)values.get("pic")).toArray();
+                        ArangoDbFsStore fs = new ArangoDbFsStore(storeRoot, ARANGODB_FS_IMAGE_FOLDER);
+                        fs.createFile(entityPK, profileImage);
+                        docObj.addAttribute("imageid", intEntityPK);
+
+                        byte[] thumbImage = ((ObjectByteIterator)values.get("tpic")).toArray();
+                        ArangoDbFsStore fsThumb = new ArangoDbFsStore(storeRoot, ARANGODB_FS_THUMB_FOLDER);
+                        fsThumb.createFile(entityPK, thumbImage);
+                        docObj.addAttribute("thumbid", intEntityPK);
+                    } catch (IOException e) {
+                        System.out.println(e.toString());
+                        return -1;
+                    }
+                }
             }
 
             // add specific attributes for collection "resources"
             if (entitySet.equalsIgnoreCase("resources")) {
-                docObj.addAttribute("rid", Integer.parseInt(entityPK));
+                docObj.addAttribute("rid", intEntityPK);
                 docObj.addAttribute("manipulations", new ArrayList<CollectionEntity>());
             }
 
@@ -377,6 +405,45 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
 
     @Override
     public int viewProfile(int requesterID, int profileOwnerID, HashMap<String, ByteIterator> result, boolean insertImage, boolean testMode) {
+
+        String query;
+        DocumentCursor docCursor;
+        BaseDocument docObj = null;
+        List<DocumentEntity<BaseDocument>> resList = null;
+        ArrayList<Integer> arrList = null;
+        String strProfileOwnerID = Integer.toString(profileOwnerID);
+
+        try {
+            // count of confirmed friends & pending friends (only when requesting by himself)
+            query = "FOR u IN users FILTER u._key==\"" + strProfileOwnerID + "\" RETURN u";
+            docCursor = arango.executeDocumentQuery(
+                    query, null, arango.getDefaultAqlQueryOptions(), BaseDocument.class);
+            resList = docCursor.asList();
+            docObj = resList.get(0).getEntity();
+            arrList = (ArrayList<Integer>)docObj.getAttribute("ConfFriends");
+            int confCount = arrList.size();
+            result.put("friendcount", new ObjectByteIterator(Integer.toString(confCount).getBytes()));
+            if (requesterID == profileOwnerID) {
+                arrList = (ArrayList<Integer>)docObj.getAttribute("PendFriends");
+                int pendCount = arrList.size();
+                result.put("pendingcount", new ObjectByteIterator(Integer.toString(pendCount).getBytes()));
+            }
+
+            // count of resources
+            query = "FOR r IN resources FILTER r.walluserid==\"" + strProfileOwnerID + "\" RETURN r";
+            docCursor = arango.executeDocumentQuery(
+                    query, null, arango.getDefaultAqlQueryOptions().setCount(true), BaseDocument.class);
+            int resCount = docCursor.getCount();
+            result.put("resourcecount", new ObjectByteIterator(Integer.toString(resCount).getBytes()));
+
+            // handle images
+
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return -1;
+        }
+
         return 0;
     }
 

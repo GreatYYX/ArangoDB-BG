@@ -7,4 +7,8 @@ public interface ArangoDbClientConstants {
 
     public static final String ARANGODB_URL_PROPERTY = "arangodb.url";
     public static final String ARANGODB_DB_PROPERTY = "arangodb.database";
+
+    public static final String ARANGODB_FS_PATH = "arangodb.fspath";
+    public static final String ARANGODB_FS_IMAGE_FOLDER = "images";
+    public static final String ARANGODB_FS_THUMB_FOLDER = "thumbs";
 }
