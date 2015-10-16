@@ -297,11 +297,6 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
         List<DocumentEntity<BaseDocument>> resList = null;
         ArrayList<Integer> arrList = null;
 
-//        stats.put("usercount", Integer.toString(10000));
-//        stats.put("avgfriendsperuser", Integer.toString(10));
-//        stats.put("avgpendingperuser", Integer.toString(0));
-//        stats.put("resourcesperuser", Integer.toString(10));
-
         try {
             // user count
             query = "FOR u IN users RETURN u";
@@ -329,6 +324,7 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             arrList = (ArrayList<Integer>)docObj.getAttribute("ConfFriends");
             int resAvgConf = arrList.size();
             stats.put("avgfriendsperuser", Integer.toString(resAvgConf));
+            arrList = (ArrayList<Integer>)docObj.getAttribute("PendFriends");
             int resAvgPend = arrList.size();
             stats.put("avgpendingperuser", Integer.toString(resAvgPend));
 
