@@ -6,9 +6,7 @@ import edu.usc.bg.base.DBException;
 import edu.usc.bg.base.ObjectByteIterator;
 
 import com.arangodb.*;
-import com.arangodb.entity.BaseDocument;
-import com.arangodb.entity.CollectionEntity;
-import com.arangodb.entity.DocumentEntity;
+import com.arangodb.entity.*;
 
 import java.io.IOException;
 import java.util.*;
@@ -108,10 +106,14 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             // create collections
             arango.createCollection("users");
             arango.createCollection("resources");
+            arango.createIndex("resources", IndexType.HASH, false, "walluserid");
 
             // initialize filesystem
-            new ArangoDbFsStore(props.getProperty(ARANGODB_FS_PATH), ARANGODB_FS_IMAGE_FOLDER).initFolder();
-            new ArangoDbFsStore(props.getProperty(ARANGODB_FS_PATH), ARANGODB_FS_THUMB_FOLDER).initFolder();
+            String fsPath = props.getProperty(ARANGODB_FS_PATH);
+            if (fsPath != null) {
+                new ArangoDbFsStore(fsPath, ARANGODB_FS_IMAGE_FOLDER).initFolder();
+                new ArangoDbFsStore(fsPath, ARANGODB_FS_THUMB_FOLDER).initFolder();
+            }
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -295,6 +297,11 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
         List<DocumentEntity<BaseDocument>> resList = null;
         ArrayList<Integer> arrList = null;
 
+//        stats.put("usercount", Integer.toString(10000));
+//        stats.put("avgfriendsperuser", Integer.toString(10));
+//        stats.put("avgpendingperuser", Integer.toString(0));
+//        stats.put("resourcesperuser", Integer.toString(10));
+
         try {
             // user count
             query = "FOR u IN users RETURN u";
@@ -322,7 +329,6 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             arrList = (ArrayList<Integer>)docObj.getAttribute("ConfFriends");
             int resAvgConf = arrList.size();
             stats.put("avgfriendsperuser", Integer.toString(resAvgConf));
-            arrList = (ArrayList<Integer>)docObj.getAttribute("PendFriends");
             int resAvgPend = arrList.size();
             stats.put("avgpendingperuser", Integer.toString(resAvgPend));
 
