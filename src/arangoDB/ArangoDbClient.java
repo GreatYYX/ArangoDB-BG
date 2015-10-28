@@ -112,8 +112,8 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             arango.createIndex("resources", IndexType.HASH, false, "walluserid");
             arango.createCollection("manipulation");
             arango.createIndex("manipulation", IndexType.HASH, false, "rid");
-            arango.createIndex("manipulation", IndexType.HASH, false, "creatorid");
-            arango.createIndex("manipulation", IndexType.HASH, false, "modifierid");
+            arango.createIndex("manipulation", IndexType.HASH, false, "creatorid"); // resource creator
+            arango.createIndex("manipulation", IndexType.HASH, false, "modifierid"); // comment creator
 
             // initialize filesystem
             String fsPath = props.getProperty(ARANGODB_FS_PATH);
@@ -447,16 +447,16 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
 
             // read profile details:
             result.put("uid",       attributeToByteIterator(docObj, "_key"));
-            result.put("username", attributeToByteIterator(docObj, "username"));
-            result.put("fname", attributeToByteIterator(docObj, "fname"));
-            result.put("lname", attributeToByteIterator(docObj, "lname"));
-            result.put("gender", attributeToByteIterator(docObj, "gender"));
+            result.put("username",  attributeToByteIterator(docObj, "username"));
+            result.put("fname",     attributeToByteIterator(docObj, "fname"));
+            result.put("lname",     attributeToByteIterator(docObj, "lname"));
+            result.put("gender",    attributeToByteIterator(docObj, "gender"));
             result.put("dob",       attributeToByteIterator(docObj, "dob"));
-            result.put("jdate", attributeToByteIterator(docObj, "jdate"));
-            result.put("ldate", attributeToByteIterator(docObj, "ldate"));
-            result.put("address", attributeToByteIterator(docObj, "address"));
-            result.put("email", attributeToByteIterator(docObj, "email"));
-            result.put("tel", attributeToByteIterator(docObj, "tel"));
+            result.put("jdate",     attributeToByteIterator(docObj, "jdate"));
+            result.put("ldate",     attributeToByteIterator(docObj, "ldate"));
+            result.put("address",   attributeToByteIterator(docObj, "address"));
+            result.put("email",     attributeToByteIterator(docObj, "email"));
+            result.put("tel",       attributeToByteIterator(docObj, "tel"));
 
             // count of resources
             query = "FOR r IN resources FILTER r.walluserid==\"" + strProfileOwnerID + "\" RETURN r";
@@ -512,8 +512,9 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
 
             for(int i = 0; i < arrList.size(); i++) {
                 HashMap<String, ByteIterator> map = new HashMap<String, ByteIterator>();
-                int friendReqID = arrList.get(i);
-                query = "FOR u IN users FILTER u._key==\"" + Integer.toString(friendReqID) + "\" RETURN u";
+                int friendID = arrList.get(i);
+                String strFriendID = Integer.toString(friendID);
+                query = "FOR u IN users FILTER u._key==\"" + strFriendID + "\" RETURN u";
                 docCursor = arango.executeDocumentQuery(
                         query, null, arango.getDefaultAqlQueryOptions(), BaseDocument.class);
                 resList = docCursor.asList();
@@ -532,7 +533,12 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
                 map.put("fname",    attributeToByteIterator(docObj, "fname"));
 
                 if(insertImage) {
-
+                    ArangoDbFsStore fs = new ArangoDbFsStore(storeRoot, ARANGODB_FS_THUMB_FOLDER);
+                    byte[] thumbImage = fs.readFile(strFriendID);
+                    if (testMode) {
+                        // dump to file
+                    }
+                    map.put("tpic", new ObjectByteIterator(thumbImage));
                 }
             }
 
@@ -567,8 +573,9 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
 
             for(int i = 0; i < arrList.size(); i++) {
                 HashMap<String, ByteIterator> map = new HashMap<String, ByteIterator>();
-                int friendReqID = arrList.get(i);
-                query = "FOR u IN users FILTER u._key==\"" + Integer.toString(friendReqID) + "\" RETURN u";
+                int pendID = arrList.get(i);
+                String strPendID = Integer.toString(pendID);
+                query = "FOR u IN users FILTER u._key==\"" + strPendID + "\" RETURN u";
                 docCursor = arango.executeDocumentQuery(
                         query, null, arango.getDefaultAqlQueryOptions(), BaseDocument.class);
                 resList = docCursor.asList();
@@ -585,9 +592,14 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
                 map.put("gender",   attributeToByteIterator(docObj, "gender"));
                 map.put("pw",       attributeToByteIterator(docObj, "pw"));
                 map.put("fname",    attributeToByteIterator(docObj, "fname"));
-                
-                if(insertImage) {
 
+                if(insertImage) {
+                    ArangoDbFsStore fs = new ArangoDbFsStore(storeRoot, ARANGODB_FS_THUMB_FOLDER);
+                    byte[] thumbImage = fs.readFile(strPendID);
+                    if (testMode) {
+                        // dump to file
+                    }
+                    map.put("tpic", new ObjectByteIterator(thumbImage));
                 }
             }
 
@@ -619,13 +631,13 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             while (i < resList.size()){
                 HashMap<String, ByteIterator> vals = new HashMap<String, ByteIterator>();
                 docObj = resList.get(i).getEntity();
-                vals.put("rid",  new ObjectByteIterator(((String)docObj.getAttribute("_key")).getBytes()));
-                vals.put("walluserid",     new ObjectByteIterator(((String)docObj.getAttribute("walluserid")).getBytes()));
-                vals.put("creatorid",     new ObjectByteIterator(((String)docObj.getAttribute("creatorid")).getBytes()));
-                vals.put("doc",    new ObjectByteIterator(((String)docObj.getAttribute("doc")).getBytes()));
-                vals.put("type",       new ObjectByteIterator(((String)docObj.getAttribute("type")).getBytes()));
-                vals.put("body",     new ObjectByteIterator(((String)docObj.getAttribute("body")).getBytes()));
-                i ++;
+                vals.put("rid", attributeToByteIterator(docObj, "_key"));
+                vals.put("walluserid", attributeToByteIterator(docObj, "walluserid"));
+                vals.put("creatorid",   attributeToByteIterator(docObj, "creatorid"));
+                vals.put("doc",         attributeToByteIterator(docObj, "doc"));
+                vals.put("type",        attributeToByteIterator(docObj, "type"));
+                vals.put("body",        attributeToByteIterator(docObj, "body"));
+                i++;
                 result.add(vals);
             }
 
@@ -647,7 +659,7 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
         List<DocumentEntity<BaseDocument>> resList = null;
         String strCreatorID = Integer.toString(creatorID);
         try {
-            query = "FOR r IN resources FILTER r.creatorID==\"" + strCreatorID + "\" RETURN r";
+            query = "FOR r IN resources FILTER r.creatorid==\"" + strCreatorID + "\" RETURN r";
             docCursor = arango.executeDocumentQuery(
                     query, null, arango.getDefaultAqlQueryOptions().setCount(true), BaseDocument.class);
             resList = docCursor.asList();
@@ -655,12 +667,12 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             while (i < resList.size()){
                 HashMap<String, ByteIterator> vals = new HashMap<String, ByteIterator>();
                 docObj = resList.get(i).getEntity();
-                vals.put("rid",  new ObjectByteIterator(((String)docObj.getAttribute("_key")).getBytes()));
-                vals.put("walluserid",     new ObjectByteIterator(((String)docObj.getAttribute("walluserid")).getBytes()));
-                vals.put("creatorid",     new ObjectByteIterator(((String)docObj.getAttribute("creatorid")).getBytes()));
-                vals.put("doc",    new ObjectByteIterator(((String)docObj.getAttribute("doc")).getBytes()));
-                vals.put("type",       new ObjectByteIterator(((String)docObj.getAttribute("type")).getBytes()));
-                vals.put("body",     new ObjectByteIterator(((String)docObj.getAttribute("body")).getBytes()));
+                vals.put("rid",        attributeToByteIterator(docObj, "_key"));
+                vals.put("walluserid", attributeToByteIterator(docObj, "walluserid"));
+                vals.put("creatorid",  attributeToByteIterator(docObj, "creatorid"));
+                vals.put("doc",        attributeToByteIterator(docObj, "doc"));
+                vals.put("type",       attributeToByteIterator(docObj, "type"));
+                vals.put("body",       attributeToByteIterator(docObj, "body"));
                 i ++;
                 result.add(vals);
             }
@@ -691,13 +703,13 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             for (int i = 0; i < resList.size(); i++) {
                 docObj = resList.get(i).getEntity();
                 HashMap<String, ByteIterator> map = new HashMap<String, ByteIterator>();
-                map.put("mid",              attributeToByteIterator(docObj, "_key"));
-                map.put("rid",              attributeToByteIterator(docObj, "rid", ArangoDbValueType.NUMBER));
-                map.put("resourcecreatorid", attributeToByteIterator(docObj, "resourcecreatorid"));
-                map.put("commentcreatorid", attributeToByteIterator(docObj, "commentcreatorid"));
-                map.put("timestamp",        attributeToByteIterator(docObj, "timestamp"));
-                map.put("type",             attributeToByteIterator(docObj, "type"));
-                map.put("content",          attributeToByteIterator(docObj, "content"));
+                map.put("mid",        attributeToByteIterator(docObj, "_key"));
+                map.put("rid",        attributeToByteIterator(docObj, "rid", ArangoDbValueType.NUMBER));
+                map.put("creatorid",  attributeToByteIterator(docObj, "resourcecreatorid"));
+                map.put("modifierid", attributeToByteIterator(docObj, "commentcreatorid"));
+                map.put("timestamp",  attributeToByteIterator(docObj, "timestamp"));
+                map.put("type",       attributeToByteIterator(docObj, "type"));
+                map.put("content",    attributeToByteIterator(docObj, "content"));
                 result.add(map);
             }
 
@@ -724,8 +736,8 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             docObj.addAttribute("mid", Integer.parseInt(strMid));
 
             docObj.addAttribute("rid", resourceID); // it should be integer for sorting
-            docObj.addAttribute("resourcecreatorid", Integer.toString(resourceCreatorID));
-            docObj.addAttribute("commentcreatorid", Integer.toString(commentCreatorID));
+            docObj.addAttribute("creatorid", Integer.toString(resourceCreatorID));
+            docObj.addAttribute("modifierid", Integer.toString(commentCreatorID));
             docObj.addAttribute("timestamp", values.get("timestamp").toString());
             docObj.addAttribute("type", values.get("type").toString());
             docObj.addAttribute("content", values.get("content").toString());
@@ -755,7 +767,7 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
         return SUCCESS;
     }
 
-   @Override
+    @Override
     public int queryPendingFriendshipIds(int memberID, Vector<Integer> pendingIds) {
         if (memberID < 0)
             return ERROR;
