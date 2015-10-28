@@ -7,7 +7,9 @@ import edu.usc.bg.base.ObjectByteIterator;
 
 import com.arangodb.*;
 import com.arangodb.entity.*;
+import org.apache.commons.io.FileUtils;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.Semaphore;
@@ -120,6 +122,7 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             if (fsPath != null) {
                 new ArangoDbFsStore(fsPath, ARANGODB_FS_IMAGE_FOLDER).initFolder();
                 new ArangoDbFsStore(fsPath, ARANGODB_FS_THUMB_FOLDER).initFolder();
+                new ArangoDbFsStore(fsPath, ARANGODB_FS_DUMP_FOLDER).initFolder();
             }
 
         } catch (Exception e) {
@@ -194,7 +197,7 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
                         fsThumb.writeFile(entityPK, thumbImage);
                         docObj.addAttribute("thumbid", intEntityPK);
                     } catch (IOException e) {
-                        System.out.println(e.toString());
+                        e.printStackTrace();
                         return ERROR;
                     }
                 }
@@ -209,7 +212,7 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             arango.createDocument(entitySet, docObj);
 
         } catch (Exception e) {
-            System.out.println(e.toString());
+            e.printStackTrace();
             return ERROR;
         }
 
@@ -260,7 +263,7 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             arango.updateDocument(docInviter.getDocumentHandle(), docObjUpdate);
 
         } catch (Exception e) {
-            System.out.println(e.toString());
+            e.printStackTrace();
             return ERROR;
         }
 
@@ -287,7 +290,7 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             arango.updateDocument(docInvitee.getDocumentHandle(), docObjUpdate);
 
         } catch (Exception e) {
-            System.out.println(e.toString());
+            e.printStackTrace();
             return ERROR;
         }
         return SUCCESS;
@@ -471,12 +474,8 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
                 byte[] profileImage = fs.readFile(strProfileOwnerID);
                 if (testMode) {
                     // dump to file
-//                    try {
-//                        FileOutputStream fos = new FileOutputStream(strProfileOwnerID + "-proimage.bmp");
-//                        fos.write(profileImage);
-//                        fos.close();
-//                    } catch (Exception ex) {
-//                    }
+                    ArangoDbFsStore fsDump = new ArangoDbFsStore(storeRoot, ARANGODB_FS_DUMP_FOLDER);
+                    fs.writeFile(strProfileOwnerID + "-profileimage.bmp", profileImage);
                 }
                 result.put("pic", new ObjectByteIterator(profileImage));
             }
@@ -537,13 +536,15 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
                     byte[] thumbImage = fs.readFile(strFriendID);
                     if (testMode) {
                         // dump to file
+                        ArangoDbFsStore fsDump = new ArangoDbFsStore(storeRoot, ARANGODB_FS_DUMP_FOLDER);
+                        fs.writeFile(strProfileOwnerID + "-" + i + "-thumbimage.bmp", thumbImage);
                     }
                     map.put("tpic", new ObjectByteIterator(thumbImage));
                 }
             }
 
         } catch (Exception e) {
-            System.out.println(e.toString());
+            e.printStackTrace();
             return ERROR;
         }
 
@@ -598,13 +599,15 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
                     byte[] thumbImage = fs.readFile(strPendID);
                     if (testMode) {
                         // dump to file
+                        ArangoDbFsStore fsDump = new ArangoDbFsStore(storeRoot, ARANGODB_FS_DUMP_FOLDER);
+                        fs.writeFile(strProfileOwnerID + "-" + i + "-thumbimage.bmp", thumbImage);
                     }
                     map.put("tpic", new ObjectByteIterator(thumbImage));
                 }
             }
 
         } catch (Exception e) {
-            System.out.println(e.toString());
+            e.printStackTrace();
             return ERROR;
         }
 
@@ -631,8 +634,8 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             while (i < resList.size()){
                 HashMap<String, ByteIterator> vals = new HashMap<String, ByteIterator>();
                 docObj = resList.get(i).getEntity();
-                vals.put("rid", attributeToByteIterator(docObj, "_key"));
-                vals.put("walluserid", attributeToByteIterator(docObj, "walluserid"));
+                vals.put("rid",         attributeToByteIterator(docObj, "_key"));
+                vals.put("walluserid",  attributeToByteIterator(docObj, "walluserid"));
                 vals.put("creatorid",   attributeToByteIterator(docObj, "creatorid"));
                 vals.put("doc",         attributeToByteIterator(docObj, "doc"));
                 vals.put("type",        attributeToByteIterator(docObj, "type"));
@@ -673,7 +676,7 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
                 vals.put("doc",        attributeToByteIterator(docObj, "doc"));
                 vals.put("type",       attributeToByteIterator(docObj, "type"));
                 vals.put("body",       attributeToByteIterator(docObj, "body"));
-                i ++;
+                i++;
                 result.add(vals);
             }
 
@@ -714,7 +717,7 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             }
 
         } catch (Exception e) {
-            System.out.println(e.toString());
+            e.printStackTrace();
             return ERROR;
         }
 
@@ -745,7 +748,7 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             arango.createDocument("manipulation", docObj);
 
         } catch (Exception e) {
-            System.out.println(e.toString());
+            e.printStackTrace();
             return ERROR;
         }
         return SUCCESS;
@@ -760,7 +763,7 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
         try {
             arango.deleteDocument("manipulation", Integer.toString(manipulationID));
         } catch (Exception e) {
-            System.out.println(e.toString());
+            e.printStackTrace();
             return ERROR;
         }
 

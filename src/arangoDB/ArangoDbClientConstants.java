@@ -11,6 +11,7 @@ public interface ArangoDbClientConstants {
     public static final String ARANGODB_FS_PATH = "arangodb.fspath";
     public static final String ARANGODB_FS_IMAGE_FOLDER = "images";
     public static final String ARANGODB_FS_THUMB_FOLDER = "thumbs";
+    public static final String ARANGODB_FS_DUMP_FOLDER = "dump";
 
     public static enum ArangoDbValueType {
         STRING, NUMBER, BOOLEAN
