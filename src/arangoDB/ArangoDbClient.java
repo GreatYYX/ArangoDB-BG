@@ -1,6 +1,9 @@
 package arangoDB;
 
-import edu.usc.bg.base.*;
+import edu.usc.bg.base.ByteIterator;
+import edu.usc.bg.base.DB;
+import edu.usc.bg.base.DBException;
+import edu.usc.bg.base.ObjectByteIterator;
 
 import com.arangodb.*;
 import com.arangodb.entity.*;
@@ -156,6 +159,7 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
     public int insertEntity(String entitySet, String entityPK, HashMap<String, ByteIterator> values, boolean insertImage) {
 
         try {
+            CollectionEntity collection = arango.getCollection(entitySet);
 
             BaseDocument docObj = new BaseDocument();
             docObj.setDocumentKey(entityPK); // create _key
@@ -597,11 +601,74 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
 
     @Override
     public int viewTopKResources(int requesterID, int profileOwnerID, int k, Vector<HashMap<String, ByteIterator>> result) {
+        if(profileOwnerID < 0 || requesterID < 0 || k < 0)
+            return ERROR;
+
+        String query;
+        DocumentCursor docCursor;
+        BaseDocument docObj = null;
+        List<DocumentEntity<BaseDocument>> resList = null;
+        String strProfileOwnerID = Integer.toString(profileOwnerID);
+        try {
+            query = "FOR r IN resources FILTER r.walluserid==\"" + strProfileOwnerID + "\" SORT r.rid DESC LIMIT " + Integer.toString(k)
+                    + " RETURN r";
+            docCursor = arango.executeDocumentQuery(
+                    query, null, arango.getDefaultAqlQueryOptions().setCount(true), BaseDocument.class);
+            resList = docCursor.asList();
+            Integer i = 0;
+            while (i < resList.size()){
+                HashMap<String, ByteIterator> vals = new HashMap<String, ByteIterator>();
+                docObj = resList.get(i).getEntity();
+                vals.put("rid",  new ObjectByteIterator(((String)docObj.getAttribute("_key")).getBytes()));
+                vals.put("walluserid",     new ObjectByteIterator(((String)docObj.getAttribute("walluserid")).getBytes()));
+                vals.put("creatorid",     new ObjectByteIterator(((String)docObj.getAttribute("creatorid")).getBytes()));
+                vals.put("doc",    new ObjectByteIterator(((String)docObj.getAttribute("doc")).getBytes()));
+                vals.put("type",       new ObjectByteIterator(((String)docObj.getAttribute("type")).getBytes()));
+                vals.put("body",     new ObjectByteIterator(((String)docObj.getAttribute("body")).getBytes()));
+                i ++;
+                result.add(vals);
+            }
+
+        } catch (ArangoException e) {
+            e.printStackTrace();
+            return ERROR;
+        }
         return SUCCESS;
     }
 
     @Override
     public int getCreatedResources(int creatorID, Vector<HashMap<String, ByteIterator>> result) {
+        if(creatorID < 0)
+            return ERROR;
+
+        String query;
+        DocumentCursor docCursor;
+        BaseDocument docObj = null;
+        List<DocumentEntity<BaseDocument>> resList = null;
+        String strCreatorID = Integer.toString(creatorID);
+        try {
+            query = "FOR r IN resources FILTER r.creatorID==\"" + strCreatorID + "\" RETURN r";
+            docCursor = arango.executeDocumentQuery(
+                    query, null, arango.getDefaultAqlQueryOptions().setCount(true), BaseDocument.class);
+            resList = docCursor.asList();
+            Integer i = 0;
+            while (i < resList.size()){
+                HashMap<String, ByteIterator> vals = new HashMap<String, ByteIterator>();
+                docObj = resList.get(i).getEntity();
+                vals.put("rid",  new ObjectByteIterator(((String)docObj.getAttribute("_key")).getBytes()));
+                vals.put("walluserid",     new ObjectByteIterator(((String)docObj.getAttribute("walluserid")).getBytes()));
+                vals.put("creatorid",     new ObjectByteIterator(((String)docObj.getAttribute("creatorid")).getBytes()));
+                vals.put("doc",    new ObjectByteIterator(((String)docObj.getAttribute("doc")).getBytes()));
+                vals.put("type",       new ObjectByteIterator(((String)docObj.getAttribute("type")).getBytes()));
+                vals.put("body",     new ObjectByteIterator(((String)docObj.getAttribute("body")).getBytes()));
+                i ++;
+                result.add(vals);
+            }
+
+        } catch (ArangoException e) {
+            e.printStackTrace();
+            return ERROR;
+        }
         return SUCCESS;
     }
 
@@ -690,11 +757,64 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
 
    @Override
     public int queryPendingFriendshipIds(int memberID, Vector<Integer> pendingIds) {
+        if (memberID < 0)
+            return ERROR;
+        String query;
+        DocumentCursor docCursor;
+        BaseDocument docObj = null;
+        List<DocumentEntity<BaseDocument>> resList = null;
+        ArrayList<Integer> arrList = null;
+        String strMemberID = Integer.toString(memberID);
+        try {
+            query = "FOR u IN users FILTER u._key==\"" + strMemberID + "\" RETURN u";
+            docCursor = arango.executeDocumentQuery(
+                    query, null, arango.getDefaultAqlQueryOptions(), BaseDocument.class);
+            resList = docCursor.asList();
+            if (resList.size() > 0){
+                docObj = resList.get(0).getEntity();
+                arrList = (ArrayList<Integer>) docObj.getAttribute("PendFriends");
+                int count = 0;
+                while (count < arrList.size()){
+                    pendingIds.add(arrList.get(count));
+                    count ++;
+
+                }
+            }
+        } catch (ArangoException e) {
+            e.printStackTrace();
+            return ERROR;
+        }
         return SUCCESS;
     }
 
     @Override
     public int queryConfirmedFriendshipIds(int memberID, Vector<Integer> confirmedIds) {
+        if (memberID < 0)
+            return ERROR;
+        String query;
+        DocumentCursor docCursor;
+        BaseDocument docObj = null;
+        List<DocumentEntity<BaseDocument>> resList = null;
+        ArrayList<Integer> arrList = null;
+        String strMemberID = Integer.toString(memberID);
+        try {
+            query = "FOR u IN users FILTER u._key==\"" + strMemberID + "\" RETURN u";
+            docCursor = arango.executeDocumentQuery(
+                    query, null, arango.getDefaultAqlQueryOptions(), BaseDocument.class);
+            resList = docCursor.asList();
+            if (resList.size() > 0) {
+                docObj = resList.get(0).getEntity();
+                arrList = (ArrayList<Integer>) docObj.getAttribute("ConfFriends");
+                int count = 0;
+                while (count < arrList.size()) {
+                    confirmedIds.add(arrList.get(count));
+                    count++;
+                }
+            }
+        } catch (ArangoException e) {
+            e.printStackTrace();
+            return ERROR;
+        }
         return SUCCESS;
     }
 
