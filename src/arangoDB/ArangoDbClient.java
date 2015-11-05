@@ -75,6 +75,8 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
                 // db configuration
                 arangoCfg = new ArangoConfigure();
                 arangoCfg.setArangoHost(new ArangoHost(host, port));
+                arangoCfg.setMaxPerConnection(2000);
+                arangoCfg.setMaxTotalConnection(2000);
                 arangoCfg.init();
 
                 // connect db
@@ -629,7 +631,7 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
             query = "FOR r IN resources FILTER r.walluserid==\"" + strProfileOwnerID + "\" SORT r.rid DESC LIMIT " + Integer.toString(k)
                     + " RETURN r";
             docCursor = arango.executeDocumentQuery(
-                    query, null, arango.getDefaultAqlQueryOptions().setCount(true), BaseDocument.class);
+                    query, null, arango.getDefaultAqlQueryOptions(), BaseDocument.class);
             resList = docCursor.asList();
             Integer i = 0;
             while (i < resList.size()){
@@ -665,7 +667,7 @@ public class ArangoDbClient extends DB implements ArangoDbClientConstants {
         try {
             query = "FOR r IN resources FILTER r.creatorid==\"" + strCreatorID + "\" RETURN r";
             docCursor = arango.executeDocumentQuery(
-                    query, null, arango.getDefaultAqlQueryOptions().setCount(true), BaseDocument.class);
+                    query, null, arango.getDefaultAqlQueryOptions(), BaseDocument.class);
             resList = docCursor.asList();
             Integer i = 0;
             while (i < resList.size()){
